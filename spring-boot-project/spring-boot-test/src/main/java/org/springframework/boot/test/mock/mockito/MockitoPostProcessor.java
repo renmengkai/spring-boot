@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import java.beans.PropertyDescriptor;
 import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -77,8 +78,6 @@ import org.springframework.util.StringUtils;
  */
 public class MockitoPostProcessor extends InstantiationAwareBeanPostProcessorAdapter
 		implements BeanClassLoaderAware, BeanFactoryAware, BeanFactoryPostProcessor, Ordered {
-
-	private static final String FACTORY_BEAN_OBJECT_TYPE = "factoryBeanObjectType";
 
 	private static final String BEAN_NAME = MockitoPostProcessor.class.getName();
 
@@ -249,12 +248,12 @@ public class MockitoPostProcessor extends InstantiationAwareBeanPostProcessorAda
 	}
 
 	private Set<String> getExistingBeans(ConfigurableListableBeanFactory beanFactory, ResolvableType type) {
-		Set<String> beans = new LinkedHashSet<>(Arrays.asList(beanFactory.getBeanNamesForType(type)));
+		Set<String> beans = new LinkedHashSet<>(Arrays.asList(beanFactory.getBeanNamesForType(type, true, false)));
 		String typeName = type.resolve(Object.class).getName();
-		for (String beanName : beanFactory.getBeanNamesForType(FactoryBean.class)) {
+		for (String beanName : beanFactory.getBeanNamesForType(FactoryBean.class, true, false)) {
 			beanName = BeanFactoryUtils.transformedBeanName(beanName);
 			BeanDefinition beanDefinition = beanFactory.getBeanDefinition(beanName);
-			if (typeName.equals(beanDefinition.getAttribute(FACTORY_BEAN_OBJECT_TYPE))) {
+			if (typeName.equals(beanDefinition.getAttribute(FactoryBean.OBJECT_TYPE_ATTRIBUTE))) {
 				beans.add(beanName);
 			}
 		}
@@ -309,7 +308,7 @@ public class MockitoPostProcessor extends InstantiationAwareBeanPostProcessorAda
 				if (primaryBeanName != null) {
 					throw new NoUniqueBeanDefinitionException(type.resolve(), candidateBeanNames.size(),
 							"more than one 'primary' bean found among candidates: "
-									+ Arrays.asList(candidateBeanNames));
+									+ Collections.singletonList(candidateBeanNames));
 				}
 				primaryBeanName = candidateBeanName;
 			}
@@ -423,9 +422,8 @@ public class MockitoPostProcessor extends InstantiationAwareBeanPostProcessorAda
 	}
 
 	/**
-	 * {@link BeanPostProcessor} to handle {@link SpyBean @SpyBean} definitions.
-	 * Registered as a separate processor so that it can be ordered above AOP post
-	 * processors.
+	 * {@link BeanPostProcessor} to handle {@link SpyBean} definitions. Registered as a
+	 * separate processor so that it can be ordered above AOP post processors.
 	 */
 	static class SpyPostProcessor extends InstantiationAwareBeanPostProcessorAdapter implements PriorityOrdered {
 

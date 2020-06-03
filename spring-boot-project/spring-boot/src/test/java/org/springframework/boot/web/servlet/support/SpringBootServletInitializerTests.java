@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,12 +17,18 @@
 package org.springframework.boot.web.servlet.support;
 
 import java.util.Collections;
+import java.util.Vector;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.servlet.ServletContext;
+import javax.servlet.ServletContextEvent;
+import javax.servlet.ServletContextListener;
+import javax.servlet.ServletException;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
@@ -46,6 +52,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 /**
  * Tests for {@link SpringBootServletInitializer}.
@@ -101,6 +108,12 @@ class SpringBootServletInitializerTests {
 	}
 
 	@Test
+	void shutdownHookIsNotRegistered() {
+		new WithConfigurationAnnotation().createRootApplicationContext(this.servletContext);
+		assertThat(this.application).hasFieldOrPropertyWithValue("registerShutdownHook", false);
+	}
+
+	@Test
 	void errorPageFilterRegistrationCanBeDisabled() {
 		WebServer webServer = new UndertowServletWebServerFactory(0).getWebServer((servletContext) -> {
 			try (AbstractApplicationContext context = (AbstractApplicationContext) new WithErrorPageFilterNotRegistered()
@@ -129,11 +142,36 @@ class SpringBootServletInitializerTests {
 		given(servletContext.getInitParameterNames())
 				.willReturn(Collections.enumeration(Collections.singletonList("spring.profiles.active")));
 		given(servletContext.getInitParameter("spring.profiles.active")).willReturn("from-servlet-context");
-		given(servletContext.getAttributeNames()).willReturn(Collections.enumeration(Collections.emptyList()));
+		given(servletContext.getAttributeNames()).willReturn(Collections.emptyEnumeration());
 		try (ConfigurableApplicationContext context = (ConfigurableApplicationContext) new PropertySourceVerifyingSpringBootServletInitializer()
 				.createRootApplicationContext(servletContext)) {
 			assertThat(context.getEnvironment().getActiveProfiles()).containsExactly("from-servlet-context");
 		}
+	}
+
+	@Test
+	void whenServletContextIsDestroyedThenJdbcDriversAreDeregistered() throws ServletException {
+		ServletContext servletContext = mock(ServletContext.class);
+		given(servletContext.getInitParameterNames()).willReturn(new Vector<String>().elements());
+		given(servletContext.getAttributeNames()).willReturn(new Vector<String>().elements());
+		AtomicBoolean driversDeregistered = new AtomicBoolean();
+		new SpringBootServletInitializer() {
+
+			@Override
+			protected SpringApplicationBuilder configure(SpringApplicationBuilder builder) {
+				return builder.sources(Config.class);
+			}
+
+			@Override
+			protected void deregisterJdbcDrivers(ServletContext servletContext) {
+				driversDeregistered.set(true);
+			}
+
+		}.onStartup(servletContext);
+		ArgumentCaptor<ServletContextListener> captor = ArgumentCaptor.forClass(ServletContextListener.class);
+		verify(servletContext).addListener(captor.capture());
+		captor.getValue().contextDestroyed(new ServletContextEvent(servletContext));
+		assertThat(driversDeregistered).isTrue();
 	}
 
 	static class PropertySourceVerifyingSpringBootServletInitializer extends SpringBootServletInitializer {

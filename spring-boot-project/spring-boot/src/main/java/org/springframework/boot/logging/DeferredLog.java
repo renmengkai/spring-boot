@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,42 +38,42 @@ public class DeferredLog implements Log {
 	@Override
 	public boolean isTraceEnabled() {
 		synchronized (this.lines) {
-			return (this.destination != null) ? this.destination.isTraceEnabled() : true;
+			return (this.destination == null) || this.destination.isTraceEnabled();
 		}
 	}
 
 	@Override
 	public boolean isDebugEnabled() {
 		synchronized (this.lines) {
-			return (this.destination != null) ? this.destination.isDebugEnabled() : true;
+			return (this.destination == null) || this.destination.isDebugEnabled();
 		}
 	}
 
 	@Override
 	public boolean isInfoEnabled() {
 		synchronized (this.lines) {
-			return (this.destination != null) ? this.destination.isInfoEnabled() : true;
+			return (this.destination == null) || this.destination.isInfoEnabled();
 		}
 	}
 
 	@Override
 	public boolean isWarnEnabled() {
 		synchronized (this.lines) {
-			return (this.destination != null) ? this.destination.isWarnEnabled() : true;
+			return (this.destination == null) || this.destination.isWarnEnabled();
 		}
 	}
 
 	@Override
 	public boolean isErrorEnabled() {
 		synchronized (this.lines) {
-			return (this.destination != null) ? this.destination.isErrorEnabled() : true;
+			return (this.destination == null) || this.destination.isErrorEnabled();
 		}
 	}
 
 	@Override
 	public boolean isFatalEnabled() {
 		synchronized (this.lines) {
-			return (this.destination != null) ? this.destination.isFatalEnabled() : true;
+			return (this.destination == null) || this.destination.isFatalEnabled();
 		}
 	}
 
@@ -232,7 +232,6 @@ public class DeferredLog implements Log {
 			return;
 		case FATAL:
 			log.fatal(message, throwable);
-			return;
 		}
 	}
 

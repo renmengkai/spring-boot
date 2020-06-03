@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
+import org.springframework.boot.env.RandomValuePropertySource;
 import org.springframework.boot.origin.Origin;
 import org.springframework.boot.origin.OriginLookup;
 import org.springframework.core.env.MapPropertySource;
@@ -41,15 +42,8 @@ class SpringConfigurationPropertySourceTests {
 	@Test
 	void createWhenPropertySourceIsNullShouldThrowException() {
 		assertThatIllegalArgumentException()
-				.isThrownBy(() -> new SpringConfigurationPropertySource(null, mock(PropertyMapper.class), null))
+				.isThrownBy(() -> new SpringConfigurationPropertySource(null, mock(PropertyMapper.class)))
 				.withMessageContaining("PropertySource must not be null");
-	}
-
-	@Test
-	void createWhenMapperIsNullShouldThrowException() {
-		assertThatIllegalArgumentException()
-				.isThrownBy(() -> new SpringConfigurationPropertySource(mock(PropertySource.class), null, null))
-				.withMessageContaining("Mapper must not be null");
 	}
 
 	@Test
@@ -62,7 +56,7 @@ class SpringConfigurationPropertySourceTests {
 		TestPropertyMapper mapper = new TestPropertyMapper();
 		ConfigurationPropertyName name = ConfigurationPropertyName.of("my.key");
 		mapper.addFromConfigurationProperty(name, "key2");
-		SpringConfigurationPropertySource adapter = new SpringConfigurationPropertySource(propertySource, mapper, null);
+		SpringConfigurationPropertySource adapter = new SpringConfigurationPropertySource(propertySource, mapper);
 		assertThat(adapter.getConfigurationProperty(name).getValue()).isEqualTo("value2");
 	}
 
@@ -74,7 +68,7 @@ class SpringConfigurationPropertySourceTests {
 		TestPropertyMapper mapper = new TestPropertyMapper();
 		ConfigurationPropertyName name = ConfigurationPropertyName.of("my.key");
 		mapper.addFromConfigurationProperty(name, "key");
-		SpringConfigurationPropertySource adapter = new SpringConfigurationPropertySource(propertySource, mapper, null);
+		SpringConfigurationPropertySource adapter = new SpringConfigurationPropertySource(propertySource, mapper);
 		assertThat(adapter.getConfigurationProperty(name).getOrigin().toString())
 				.isEqualTo("\"key\" from property source \"test\"");
 	}
@@ -87,7 +81,7 @@ class SpringConfigurationPropertySourceTests {
 		TestPropertyMapper mapper = new TestPropertyMapper();
 		ConfigurationPropertyName name = ConfigurationPropertyName.of("my.key");
 		mapper.addFromConfigurationProperty(name, "key");
-		SpringConfigurationPropertySource adapter = new SpringConfigurationPropertySource(propertySource, mapper, null);
+		SpringConfigurationPropertySource adapter = new SpringConfigurationPropertySource(propertySource, mapper);
 		assertThat(adapter.getConfigurationProperty(name).getOrigin().toString()).isEqualTo("TestOrigin key");
 	}
 
@@ -97,7 +91,7 @@ class SpringConfigurationPropertySourceTests {
 		source.put("foo.bar", "value");
 		PropertySource<?> propertySource = new MapPropertySource("test", source);
 		SpringConfigurationPropertySource adapter = new SpringConfigurationPropertySource(propertySource,
-				DefaultPropertyMapper.INSTANCE, null);
+				DefaultPropertyMapper.INSTANCE);
 		assertThat(adapter.containsDescendantOf(ConfigurationPropertyName.of("foo")))
 				.isEqualTo(ConfigurationPropertyState.UNKNOWN);
 	}
@@ -146,6 +140,30 @@ class SpringConfigurationPropertySourceTests {
 		PropertySource<?> propertySource = new MapPropertySource("test", source);
 		assertThat(SpringConfigurationPropertySource.from(propertySource))
 				.isInstanceOf(IterableConfigurationPropertySource.class);
+	}
+
+	@Test
+	void containsDescendantOfWhenRandomSourceAndRandomPropertyReturnsPresent() {
+		SpringConfigurationPropertySource source = SpringConfigurationPropertySource
+				.from(new RandomValuePropertySource());
+		assertThat(source.containsDescendantOf(ConfigurationPropertyName.of("random")))
+				.isEqualTo(ConfigurationPropertyState.PRESENT);
+	}
+
+	@Test
+	void containsDescendantOfWhenRandomSourceAndRandomPrefixedPropertyReturnsPresent() {
+		SpringConfigurationPropertySource source = SpringConfigurationPropertySource
+				.from(new RandomValuePropertySource());
+		assertThat(source.containsDescendantOf(ConfigurationPropertyName.of("random.something")))
+				.isEqualTo(ConfigurationPropertyState.PRESENT);
+	}
+
+	@Test
+	void containsDescendantOfWhenRandomSourceAndNonRandomPropertyReturnsAbsent() {
+		SpringConfigurationPropertySource source = SpringConfigurationPropertySource
+				.from(new RandomValuePropertySource());
+		assertThat(source.containsDescendantOf(ConfigurationPropertyName.of("abandon.something")))
+				.isEqualTo(ConfigurationPropertyState.ABSENT);
 	}
 
 	/**
