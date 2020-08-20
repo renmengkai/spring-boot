@@ -32,6 +32,7 @@ import org.springframework.util.Assert;
  *
  * @author Phillip Webb
  * @author Scott Frederick
+ * @author Andrey Shlykov
  * @since 2.3.0
  */
 public class BuildRequest {
@@ -46,6 +47,8 @@ public class BuildRequest {
 
 	private final ImageReference builder;
 
+	private final ImageReference runImage;
+
 	private final Creator creator;
 
 	private final Map<String, String> env;
@@ -54,27 +57,34 @@ public class BuildRequest {
 
 	private final boolean verboseLogging;
 
+	private final PullPolicy pullPolicy;
+
 	BuildRequest(ImageReference name, Function<Owner, TarArchive> applicationContent) {
 		Assert.notNull(name, "Name must not be null");
 		Assert.notNull(applicationContent, "ApplicationContent must not be null");
 		this.name = name.inTaggedForm();
 		this.applicationContent = applicationContent;
 		this.builder = DEFAULT_BUILDER;
+		this.runImage = null;
 		this.env = Collections.emptyMap();
 		this.cleanCache = false;
 		this.verboseLogging = false;
+		this.pullPolicy = PullPolicy.ALWAYS;
 		this.creator = Creator.withVersion("");
 	}
 
 	BuildRequest(ImageReference name, Function<Owner, TarArchive> applicationContent, ImageReference builder,
-			Creator creator, Map<String, String> env, boolean cleanCache, boolean verboseLogging) {
+			ImageReference runImage, Creator creator, Map<String, String> env, boolean cleanCache,
+			boolean verboseLogging, PullPolicy pullPolicy) {
 		this.name = name;
 		this.applicationContent = applicationContent;
 		this.builder = builder;
+		this.runImage = runImage;
 		this.creator = creator;
 		this.env = env;
 		this.cleanCache = cleanCache;
 		this.verboseLogging = verboseLogging;
+		this.pullPolicy = pullPolicy;
 	}
 
 	/**
@@ -84,19 +94,29 @@ public class BuildRequest {
 	 */
 	public BuildRequest withBuilder(ImageReference builder) {
 		Assert.notNull(builder, "Builder must not be null");
-		return new BuildRequest(this.name, this.applicationContent, builder.inTaggedForm(), this.creator, this.env,
-				this.cleanCache, this.verboseLogging);
+		return new BuildRequest(this.name, this.applicationContent, builder.inTaggedOrDigestForm(), this.runImage,
+				this.creator, this.env, this.cleanCache, this.verboseLogging, this.pullPolicy);
 	}
 
 	/**
-	 * Return a new {@link BuildRequest} with an updated builder.
+	 * Return a new {@link BuildRequest} with an updated run image.
+	 * @param runImageName the run image to use
+	 * @return an updated build request
+	 */
+	public BuildRequest withRunImage(ImageReference runImageName) {
+		return new BuildRequest(this.name, this.applicationContent, this.builder, runImageName.inTaggedOrDigestForm(),
+				this.creator, this.env, this.cleanCache, this.verboseLogging, this.pullPolicy);
+	}
+
+	/**
+	 * Return a new {@link BuildRequest} with an updated creator.
 	 * @param creator the new {@code Creator} to use
 	 * @return an updated build request
 	 */
 	public BuildRequest withCreator(Creator creator) {
 		Assert.notNull(creator, "Creator must not be null");
-		return new BuildRequest(this.name, this.applicationContent, this.builder, creator, this.env, this.cleanCache,
-				this.verboseLogging);
+		return new BuildRequest(this.name, this.applicationContent, this.builder, this.runImage, creator, this.env,
+				this.cleanCache, this.verboseLogging, this.pullPolicy);
 	}
 
 	/**
@@ -110,12 +130,12 @@ public class BuildRequest {
 		Assert.hasText(value, "Value must not be empty");
 		Map<String, String> env = new LinkedHashMap<>(this.env);
 		env.put(name, value);
-		return new BuildRequest(this.name, this.applicationContent, this.builder, this.creator,
-				Collections.unmodifiableMap(env), this.cleanCache, this.verboseLogging);
+		return new BuildRequest(this.name, this.applicationContent, this.builder, this.runImage, this.creator,
+				Collections.unmodifiableMap(env), this.cleanCache, this.verboseLogging, this.pullPolicy);
 	}
 
 	/**
-	 * Return a new {@link BuildRequest} with an additional env variables.
+	 * Return a new {@link BuildRequest} with additional env variables.
 	 * @param env the additional variables
 	 * @return an updated build request
 	 */
@@ -123,28 +143,38 @@ public class BuildRequest {
 		Assert.notNull(env, "Env must not be null");
 		Map<String, String> updatedEnv = new LinkedHashMap<>(this.env);
 		updatedEnv.putAll(env);
-		return new BuildRequest(this.name, this.applicationContent, this.builder, this.creator,
-				Collections.unmodifiableMap(updatedEnv), this.cleanCache, this.verboseLogging);
+		return new BuildRequest(this.name, this.applicationContent, this.builder, this.runImage, this.creator,
+				Collections.unmodifiableMap(updatedEnv), this.cleanCache, this.verboseLogging, this.pullPolicy);
 	}
 
 	/**
-	 * Return a new {@link BuildRequest} with an specific clean cache settings.
+	 * Return a new {@link BuildRequest} with an updated clean cache setting.
 	 * @param cleanCache if the cache should be cleaned
 	 * @return an updated build request
 	 */
 	public BuildRequest withCleanCache(boolean cleanCache) {
-		return new BuildRequest(this.name, this.applicationContent, this.builder, this.creator, this.env, cleanCache,
-				this.verboseLogging);
+		return new BuildRequest(this.name, this.applicationContent, this.builder, this.runImage, this.creator, this.env,
+				cleanCache, this.verboseLogging, this.pullPolicy);
 	}
 
 	/**
-	 * Return a new {@link BuildRequest} with an specific verbose logging settings.
+	 * Return a new {@link BuildRequest} with an updated verbose logging setting.
 	 * @param verboseLogging if verbose logging should be used
 	 * @return an updated build request
 	 */
 	public BuildRequest withVerboseLogging(boolean verboseLogging) {
-		return new BuildRequest(this.name, this.applicationContent, this.builder, this.creator, this.env,
-				this.cleanCache, verboseLogging);
+		return new BuildRequest(this.name, this.applicationContent, this.builder, this.runImage, this.creator, this.env,
+				this.cleanCache, verboseLogging, this.pullPolicy);
+	}
+
+	/**
+	 * Return a new {@link BuildRequest} with the updated image pull policy.
+	 * @param pullPolicy image pull policy {@link PullPolicy}
+	 * @return an updated build request
+	 */
+	public BuildRequest withPullPolicy(PullPolicy pullPolicy) {
+		return new BuildRequest(this.name, this.applicationContent, this.builder, this.runImage, this.creator, this.env,
+				this.cleanCache, this.verboseLogging, pullPolicy);
 	}
 
 	/**
@@ -172,6 +202,14 @@ public class BuildRequest {
 	 */
 	public ImageReference getBuilder() {
 		return this.builder;
+	}
+
+	/**
+	 * Return the run image that should be used, if provided.
+	 * @return the run image
+	 */
+	public ImageReference getRunImage() {
+		return this.runImage;
 	}
 
 	/**
@@ -204,6 +242,14 @@ public class BuildRequest {
 	 */
 	public boolean isVerboseLogging() {
 		return this.verboseLogging;
+	}
+
+	/**
+	 * Return the image {@link PullPolicy} that the builder should use.
+	 * @return image pull policy
+	 */
+	public PullPolicy getPullPolicy() {
+		return this.pullPolicy;
 	}
 
 	/**

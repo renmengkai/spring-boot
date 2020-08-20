@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -126,6 +126,13 @@ class OriginTrackedYamlLoaderTests {
 		Resource resource = new ByteArrayResource(yaml.getBytes(StandardCharsets.UTF_8));
 		this.loader = new OriginTrackedYamlLoader(resource);
 		assertThatExceptionOfType(ConstructorException.class).isThrownBy(this.loader::load);
+	}
+
+	@Test
+	void emptyDocuments() {
+		this.loader = new OriginTrackedYamlLoader(new ClassPathResource("test-empty-yaml.yml", getClass()));
+		List<Map<String, Object>> loaded = this.loader.load();
+		assertThat(loaded).isEmpty();
 	}
 
 	private OriginTrackedValue getValue(String name) {

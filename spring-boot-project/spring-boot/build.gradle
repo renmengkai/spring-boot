@@ -4,21 +4,17 @@ plugins {
 	id "org.springframework.boot.conventions"
 	id "org.springframework.boot.configuration-properties"
 	id "org.springframework.boot.deployed"
-	id "org.springframework.boot.internal-dependency-management"
 	id "org.springframework.boot.optional-dependencies"
 }
 
 description = "Spring Boot"
 
 dependencies {
-	annotationProcessor(platform(project(":spring-boot-project:spring-boot-dependencies")))
 	annotationProcessor("org.apache.logging.log4j:log4j-core")
 
-	api(platform(project(":spring-boot-project:spring-boot-dependencies")))
 	api("org.springframework:spring-core")
 	api("org.springframework:spring-context")
 
-	optional(platform(project(":spring-boot-project:spring-boot-dependencies")))
 	optional("ch.qos.logback:logback-classic")
 	optional("com.atomikos:transactions-jdbc")
 	optional("com.atomikos:transactions-jms")
@@ -29,7 +25,7 @@ dependencies {
 	optional("com.zaxxer:HikariCP")
 	optional("io.netty:netty-tcnative-boringssl-static")
 	optional("io.projectreactor:reactor-tools")
-	optional("io.projectreactor.netty:reactor-netty")
+	optional("io.projectreactor.netty:reactor-netty-http")
 	optional("io.rsocket:rsocket-core")
 	optional("io.rsocket:rsocket-transport-netty")
 	optional("io.undertow:undertow-servlet") {
@@ -60,7 +56,6 @@ dependencies {
 	optional("org.hibernate.validator:hibernate-validator")
 	optional("org.jboss:jboss-transaction-spi")
 	optional("org.liquibase:liquibase-core")
-	optional("org.neo4j:neo4j-ogm-core")
 	optional("org.slf4j:jul-to-slf4j")
 	optional("org.slf4j:slf4j-api")
 	optional("org.springframework:spring-messaging")
@@ -97,6 +92,7 @@ dependencies {
 	testImplementation("org.junit.jupiter:junit-jupiter")
 	testImplementation("org.mariadb.jdbc:mariadb-java-client")
 	testImplementation("org.mockito:mockito-core")
+	testImplementation("org.mockito:mockito-junit-jupiter")
 	testImplementation("org.postgresql:postgresql")
 	testImplementation("org.springframework:spring-context-support")
 	testImplementation("org.springframework.data:spring-data-redis")

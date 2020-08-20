@@ -35,6 +35,7 @@ import org.springframework.util.StringUtils;
  *
  * @author Phillip Webb
  * @author Scott Frederick
+ * @author Andrey Shlykov
  * @since 2.3.0
  */
 public class Builder {
@@ -60,56 +61,75 @@ public class Builder {
 	public void build(BuildRequest request) throws DockerEngineException, IOException {
 		Assert.notNull(request, "Request must not be null");
 		this.log.start(request);
-		Image builderImage = pullBuilder(request);
+		Image builderImage = getImage(request, ImageType.BUILDER);
 		BuilderMetadata builderMetadata = BuilderMetadata.fromImage(builderImage);
 		BuildOwner buildOwner = BuildOwner.fromEnv(builderImage.getConfig().getEnv());
-		StackId stackId = StackId.fromImage(builderImage);
-		ImageReference runImageReference = getRunImageReference(builderMetadata.getStack());
-		Image runImage = pullRunImage(request, runImageReference);
-		assertHasExpectedStackId(runImage, stackId);
+		request = determineRunImage(request, builderImage, builderMetadata.getStack());
 		EphemeralBuilder builder = new EphemeralBuilder(buildOwner, builderImage, builderMetadata, request.getCreator(),
 				request.getEnv());
 		this.docker.image().load(builder.getArchive(), UpdateListener.none());
 		try {
-			executeLifecycle(request, runImageReference, builder);
+			executeLifecycle(request, builder);
 		}
 		finally {
 			this.docker.image().remove(builder.getName(), true);
 		}
 	}
 
-	private Image pullBuilder(BuildRequest request) throws IOException {
-		ImageReference builderImageReference = request.getBuilder();
-		Consumer<TotalProgressEvent> progressConsumer = this.log.pullingBuilder(request, builderImageReference);
-		TotalProgressPullListener listener = new TotalProgressPullListener(progressConsumer);
-		Image builderImage = this.docker.image().pull(builderImageReference, listener);
-		this.log.pulledBuilder(request, builderImage);
-		return builderImage;
+	private BuildRequest determineRunImage(BuildRequest request, Image builderImage, Stack builderStack)
+			throws IOException {
+		if (request.getRunImage() == null) {
+			ImageReference runImage = getRunImageReferenceForStack(builderStack);
+			request = request.withRunImage(runImage);
+		}
+		Image runImage = getImage(request, ImageType.RUNNER);
+		assertStackIdsMatch(runImage, builderImage);
+		return request;
 	}
 
-	private ImageReference getRunImageReference(Stack stack) {
+	private ImageReference getRunImageReferenceForStack(Stack stack) {
 		String name = stack.getRunImage().getImage();
-		Assert.state(StringUtils.hasText(name), "Run image must be specified");
-		return ImageReference.of(name).inTaggedForm();
+		Assert.state(StringUtils.hasText(name), "Run image must be specified in the builder image stack");
+		return ImageReference.of(name).inTaggedOrDigestForm();
 	}
 
-	private Image pullRunImage(BuildRequest request, ImageReference name) throws IOException {
-		Consumer<TotalProgressEvent> progressConsumer = this.log.pullingRunImage(request, name);
+	private Image getImage(BuildRequest request, ImageType imageType) throws IOException {
+		ImageReference imageReference = (imageType == ImageType.BUILDER) ? request.getBuilder() : request.getRunImage();
+
+		if (request.getPullPolicy() == PullPolicy.ALWAYS) {
+			return pullImage(imageReference, imageType);
+		}
+
+		try {
+			return this.docker.image().inspect(imageReference);
+		}
+		catch (DockerEngineException exception) {
+			if (request.getPullPolicy() == PullPolicy.IF_NOT_PRESENT && exception.getStatusCode() == 404) {
+				return pullImage(imageReference, imageType);
+			}
+			else {
+				throw exception;
+			}
+		}
+	}
+
+	private Image pullImage(ImageReference reference, ImageType imageType) throws IOException {
+		Consumer<TotalProgressEvent> progressConsumer = this.log.pullingImage(reference, imageType);
 		TotalProgressPullListener listener = new TotalProgressPullListener(progressConsumer);
-		Image image = this.docker.image().pull(name, listener);
-		this.log.pulledRunImage(request, image);
+		Image image = this.docker.image().pull(reference, listener);
+		this.log.pulledImage(image, imageType);
 		return image;
 	}
 
-	private void assertHasExpectedStackId(Image image, StackId stackId) {
-		StackId pulledStackId = StackId.fromImage(image);
-		Assert.state(pulledStackId.equals(stackId),
-				"Run image stack '" + pulledStackId + "' does not match builder stack '" + stackId + "'");
+	private void assertStackIdsMatch(Image runImage, Image builderImage) {
+		StackId runImageStackId = StackId.fromImage(runImage);
+		StackId builderImageStackId = StackId.fromImage(builderImage);
+		Assert.state(runImageStackId.equals(builderImageStackId), () -> "Run image stack '" + runImageStackId
+				+ "' does not match builder stack '" + builderImageStackId + "'");
 	}
 
-	private void executeLifecycle(BuildRequest request, ImageReference runImageReference, EphemeralBuilder builder)
-			throws IOException {
-		try (Lifecycle lifecycle = new Lifecycle(this.log, this.docker, request, runImageReference, builder)) {
+	private void executeLifecycle(BuildRequest request, EphemeralBuilder builder) throws IOException {
+		try (Lifecycle lifecycle = new Lifecycle(this.log, this.docker, request, builder)) {
 			lifecycle.execute();
 		}
 	}

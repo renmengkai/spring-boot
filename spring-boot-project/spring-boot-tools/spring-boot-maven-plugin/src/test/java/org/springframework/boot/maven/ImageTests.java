@@ -26,6 +26,7 @@ import org.apache.maven.artifact.versioning.VersionRange;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.boot.buildpack.platform.build.BuildRequest;
+import org.springframework.boot.buildpack.platform.build.PullPolicy;
 import org.springframework.boot.buildpack.platform.io.Owner;
 import org.springframework.boot.buildpack.platform.io.TarArchive;
 
@@ -36,6 +37,7 @@ import static org.assertj.core.api.Assertions.entry;
  * Tests for {@link Image}.
  *
  * @author Phillip Webb
+ * @author Scott Frederick
  */
 class ImageTests {
 
@@ -58,9 +60,11 @@ class ImageTests {
 		BuildRequest request = new Image().getBuildRequest(createArtifact(), mockApplicationContent());
 		assertThat(request.getName().toString()).isEqualTo("docker.io/library/my-app:0.0.1-SNAPSHOT");
 		assertThat(request.getBuilder().toString()).contains("paketo-buildpacks/builder");
+		assertThat(request.getRunImage()).isNull();
 		assertThat(request.getEnv()).isEmpty();
 		assertThat(request.isCleanCache()).isFalse();
 		assertThat(request.isVerboseLogging()).isFalse();
+		assertThat(request.getPullPolicy()).isEqualTo(PullPolicy.ALWAYS);
 	}
 
 	@Test
@@ -69,6 +73,14 @@ class ImageTests {
 		image.builder = "springboot/builder:2.2.x";
 		BuildRequest request = image.getBuildRequest(createArtifact(), mockApplicationContent());
 		assertThat(request.getBuilder().toString()).isEqualTo("docker.io/springboot/builder:2.2.x");
+	}
+
+	@Test
+	void getBuildRequestWhenHasRunImageUsesRunImage() {
+		Image image = new Image();
+		image.runImage = "springboot/run:latest";
+		BuildRequest request = image.getBuildRequest(createArtifact(), mockApplicationContent());
+		assertThat(request.getRunImage().toString()).isEqualTo("docker.io/springboot/run:latest");
 	}
 
 	@Test
@@ -93,6 +105,14 @@ class ImageTests {
 		image.verboseLogging = true;
 		BuildRequest request = image.getBuildRequest(createArtifact(), mockApplicationContent());
 		assertThat(request.isVerboseLogging()).isTrue();
+	}
+
+	@Test
+	void getBuildRequestWhenHasPullPolicyUsesPullPolicy() {
+		Image image = new Image();
+		image.setPullPolicy(PullPolicy.NEVER);
+		BuildRequest request = image.getBuildRequest(createArtifact(), mockApplicationContent());
+		assertThat(request.getPullPolicy()).isEqualTo(PullPolicy.NEVER);
 	}
 
 	private Artifact createArtifact() {

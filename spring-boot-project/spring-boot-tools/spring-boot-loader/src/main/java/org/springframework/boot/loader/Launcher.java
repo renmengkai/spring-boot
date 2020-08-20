@@ -94,7 +94,7 @@ public abstract class Launcher {
 	 * @throws Exception if the classloader cannot be created
 	 */
 	protected ClassLoader createClassLoader(URL[] urls) throws Exception {
-		return new LaunchedURLClassLoader(isExploded(), urls, getClass().getClassLoader());
+		return new LaunchedURLClassLoader(isExploded(), getArchive(), urls, getClass().getClassLoader());
 	}
 
 	/**
@@ -172,7 +172,16 @@ public abstract class Launcher {
 	 * @since 2.3.0
 	 */
 	protected boolean isExploded() {
-		return true;
+		return false;
+	}
+
+	/**
+	 * Return the root archive.
+	 * @return the root archive
+	 * @since 2.3.1
+	 */
+	protected Archive getArchive() {
+		return null;
 	}
 
 }

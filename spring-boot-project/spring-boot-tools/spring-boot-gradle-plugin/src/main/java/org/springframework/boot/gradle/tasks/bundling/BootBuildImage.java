@@ -34,6 +34,7 @@ import org.gradle.api.tasks.options.Option;
 import org.springframework.boot.buildpack.platform.build.BuildRequest;
 import org.springframework.boot.buildpack.platform.build.Builder;
 import org.springframework.boot.buildpack.platform.build.Creator;
+import org.springframework.boot.buildpack.platform.build.PullPolicy;
 import org.springframework.boot.buildpack.platform.docker.transport.DockerEngineException;
 import org.springframework.boot.buildpack.platform.docker.type.ImageName;
 import org.springframework.boot.buildpack.platform.docker.type.ImageReference;
@@ -61,11 +62,15 @@ public class BootBuildImage extends DefaultTask {
 
 	private String builder;
 
+	private String runImage;
+
 	private Map<String, String> environment = new HashMap<>();
 
 	private boolean cleanCache;
 
 	private boolean verboseLogging;
+
+	private PullPolicy pullPolicy;
 
 	public BootBuildImage() {
 		this.jar = getProject().getObjects().fileProperty();
@@ -131,6 +136,26 @@ public class BootBuildImage extends DefaultTask {
 	@Option(option = "builder", description = "The name of the builder image to use")
 	public void setBuilder(String builder) {
 		this.builder = builder;
+	}
+
+	/**
+	 * Returns the run image that will be included in the built image. When {@code null},
+	 * the run image bundled with the builder will be used.
+	 * @return the run image
+	 */
+	@Input
+	@Optional
+	public String getRunImage() {
+		return this.runImage;
+	}
+
+	/**
+	 * Sets the run image that will be included in the built image.
+	 * @param runImage the run image
+	 */
+	@Option(option = "runImage", description = "The name of the run image to use")
+	public void setRunImage(String runImage) {
+		this.runImage = runImage;
 	}
 
 	/**
@@ -202,6 +227,25 @@ public class BootBuildImage extends DefaultTask {
 		this.verboseLogging = verboseLogging;
 	}
 
+	/**
+	 * Returns image pull policy that will be used when building the image.
+	 * @return whether images should be pulled
+	 */
+	@Input
+	@Optional
+	public PullPolicy getPullPolicy() {
+		return this.pullPolicy;
+	}
+
+	/**
+	 * Sets image pull policy that will be used when building the image.
+	 * @param pullPolicy image pull policy {@link PullPolicy}
+	 */
+	@Option(option = "pullPolicy", description = "The image pull policy")
+	public void setPullPolicy(PullPolicy pullPolicy) {
+		this.pullPolicy = pullPolicy;
+	}
+
 	@TaskAction
 	void buildImage() throws DockerEngineException, IOException {
 		Builder builder = new Builder();
@@ -228,16 +272,25 @@ public class BootBuildImage extends DefaultTask {
 
 	private BuildRequest customize(BuildRequest request) {
 		request = customizeBuilder(request);
+		request = customizeRunImage(request);
 		request = customizeEnvironment(request);
 		request = customizeCreator(request);
 		request = request.withCleanCache(this.cleanCache);
 		request = request.withVerboseLogging(this.verboseLogging);
+		request = customizePullPolicy(request);
 		return request;
 	}
 
 	private BuildRequest customizeBuilder(BuildRequest request) {
 		if (StringUtils.hasText(this.builder)) {
 			return request.withBuilder(ImageReference.of(this.builder));
+		}
+		return request;
+	}
+
+	private BuildRequest customizeRunImage(BuildRequest request) {
+		if (StringUtils.hasText(this.runImage)) {
+			return request.withRunImage(ImageReference.of(this.runImage));
 		}
 		return request;
 	}
@@ -256,6 +309,13 @@ public class BootBuildImage extends DefaultTask {
 		String springBootVersion = VersionExtractor.forClass(BootBuildImage.class);
 		if (StringUtils.hasText(springBootVersion)) {
 			return request.withCreator(Creator.withVersion(springBootVersion));
+		}
+		return request;
+	}
+
+	private BuildRequest customizePullPolicy(BuildRequest request) {
+		if (this.pullPolicy != null) {
+			request = request.withPullPolicy(this.pullPolicy);
 		}
 		return request;
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,8 @@ import java.util.stream.Collectors;
 
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
+
+import org.springframework.util.Assert;
 
 /**
  * Thin wrapper to adapt Snake {@link Yaml} to {@link JsonParser}.
@@ -63,7 +65,9 @@ public class YamlJsonParser extends AbstractJsonParser {
 
 		@Override
 		protected Class<?> getClassForName(String name) throws ClassNotFoundException {
-			return (SUPPORTED_TYPES.contains(name)) ? super.getClassForName(name) : null;
+			Assert.state(SUPPORTED_TYPES.contains(name),
+					() -> "Unsupported '" + name + "' type encountered in YAML document");
+			return super.getClassForName(name);
 		}
 
 	}
